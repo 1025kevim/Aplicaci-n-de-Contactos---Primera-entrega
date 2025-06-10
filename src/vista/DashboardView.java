@@ -2,8 +2,7 @@ package vista;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+import java.awt.event.*;
 
 public class DashboardView extends JFrame {
     public JLabel lblEstado = new JLabel("Conectado: Ok");
@@ -22,15 +21,26 @@ public class DashboardView extends JFrame {
         JMenu contactos = new JMenu("Contactos");
 
         JMenuItem itemUsuarios = new JMenuItem("Usuarios");
-        JMenuItem itemCerrar = new JMenuItem("Cerrar"); // Este es el botón que vamos a usar
+        JMenuItem itemCerrar = new JMenuItem("Cerrar");
+
         archivo.add(itemUsuarios);
         archivo.addSeparator();
         archivo.add(itemCerrar);
 
         contactos.add(new JMenuItem("Listado"));
+
         menuBar.add(archivo);
         menuBar.add(contactos);
         setJMenuBar(menuBar);
+
+        // Acción al hacer clic en "Usuarios"
+        itemUsuarios.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                new UsuariosView(usuario).setVisible(true);
+                dispose(); // cerrar el Dashboard
+            }
+        });
 
         // Acción al hacer clic en "Cerrar"
         itemCerrar.addActionListener(new ActionListener() {
