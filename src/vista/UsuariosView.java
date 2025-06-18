@@ -3,38 +3,40 @@ package vista;
 import modelo.Conexion;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.awt.event.*;
+import java.sql.*;
 
 public class UsuariosView extends JFrame {
     // Campos de texto
-    public JTextField txtNombre = new JTextField();
-    public JTextField txtApellido = new JTextField();
-    public JTextField txtCorreo = new JTextField();
-    public JTextField txtTelefono = new JTextField();
+    private JTextField txtNombre = new JTextField();
+    private JTextField txtApellido = new JTextField();
+    private JTextField txtCorreo = new JTextField();
+    private JTextField txtTelefono = new JTextField();
 
     // Botones
-    public JButton btnNuevo = new JButton("Nuevo");
-    public JButton btnGuardar = new JButton("Guardar"); // Added Save button
-    public JButton btnActualizar = new JButton("Update");
-    public JButton btnEliminar = new JButton("Delete");
-    public JButton btnCancelar = new JButton("Cancel");
+    private JButton btnNuevo = new JButton("Nuevo");
+    private JButton btnGuardar = new JButton("Guardar");
+    private JButton btnActualizar = new JButton("Actualizar");
+    private JButton btnEliminar = new JButton("Eliminar");
+    private JButton btnCancelar = new JButton("Cancelar");
 
     // Tabla
-    public JTable tablaUsuarios = new JTable();
-    public JLabel lblEstado = new JLabel("Conected: Ok");
-    public JLabel lblUsuario = new JLabel("Usuario: pepito");
+    private JTable tablaUsuarios;
+    private DefaultTableModel modeloTabla;
 
-    private String usuarioLogueado; // Store the logged-in username
+    private JLabel lblEstado = new JLabel("Conectado: Ok");
+    private JLabel lblUsuario = new JLabel();
+
+    private String usuarioLogueado;
+    private int idSeleccionado = -1;
 
     public UsuariosView(String usuario) {
-        this.usuarioLogueado = usuario; // Store the username
-        setTitle("Usuarios");
-        setSize(600, 500);
+        this.usuarioLogueado = usuario;
+
+        setTitle("Agenda de Contactos");
+        setSize(700, 500);
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout());
@@ -49,19 +51,20 @@ public class UsuariosView extends JFrame {
 
         // Panel superior - formulario
         JPanel panelFormulario = new JPanel(new GridLayout(5, 2, 10, 5));
-        panelFormulario.setBorder(BorderFactory.createTitledBorder("Listado de usuarios"));
-        panelFormulario.add(new JLabel("Nombre"));
+        panelFormulario.setBorder(BorderFactory.createTitledBorder("Datos del contacto"));
+        panelFormulario.add(new JLabel("Nombre:"));
         panelFormulario.add(txtNombre);
-         panelFormulario.add(new JLabel("Apellido"));
+        panelFormulario.add(new JLabel("Apellido:"));
         panelFormulario.add(txtApellido);
-        panelFormulario.add(new JLabel("Correo"));
+        panelFormulario.add(new JLabel("Correo:"));
         panelFormulario.add(txtCorreo);
-        panelFormulario.add(new JLabel("Telefono"));
+        panelFormulario.add(new JLabel("Teléfono:"));
         panelFormulario.add(txtTelefono);
 
-        JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 5));
+        // Botones
+        JPanel panelBotones = new JPanel(new FlowLayout(FlowLayout.CENTER, 10, 5));
         panelBotones.add(btnNuevo);
-        panelBotones.add(btnGuardar); // Add Save button
+        panelBotones.add(btnGuardar);
         panelBotones.add(btnActualizar);
         panelBotones.add(btnEliminar);
         panelBotones.add(btnCancelar);
@@ -71,6 +74,8 @@ public class UsuariosView extends JFrame {
         panelSuperior.add(panelBotones, BorderLayout.SOUTH);
 
         // Tabla
+        modeloTabla = new DefaultTableModel(new String[]{"ID", "Nombre", "Apellido", "Correo", "Teléfono"}, 0);
+        tablaUsuarios = new JTable(modeloTabla);
         JScrollPane scrollTabla = new JScrollPane(tablaUsuarios);
 
         // Panel inferior - estado y usuario
@@ -79,54 +84,99 @@ public class UsuariosView extends JFrame {
         panelInferior.add(lblEstado, BorderLayout.WEST);
         panelInferior.add(lblUsuario, BorderLayout.EAST);
 
-        // Agregar todo al frame
+        // Agregar al frame
         add(panelSuperior, BorderLayout.NORTH);
         add(scrollTabla, BorderLayout.CENTER);
         add(panelInferior, BorderLayout.SOUTH);
 
-        // Acción para "Cerrar" del menú
+        // Eventos
         itemCerrar.addActionListener(e -> {
             new DashboardView(usuario).setVisible(true);
-            dispose(); // cerrar esta vista
+            dispose();
         });
 
-        // Acción para el botón "Guardar"
-        btnGuardar.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                guardarContacto();
+        btnGuardar.addActionListener(e -> guardarContacto());
+        btnActualizar.addActionListener(e -> actualizarContacto());
+        btnEliminar.addActionListener(e -> eliminarContacto());
+        btnCancelar.addActionListener(e -> limpiarCampos());
+        btnNuevo.addActionListener(e -> limpiarCampos());
+
+        tablaUsuarios.addMouseListener(new MouseAdapter() {
+            public void mouseClicked(MouseEvent e) {
+                int fila = tablaUsuarios.getSelectedRow();
+                if (fila >= 0) {
+                    idSeleccionado = Integer.parseInt(modeloTabla.getValueAt(fila, 0).toString());
+                    txtNombre.setText(modeloTabla.getValueAt(fila, 1).toString());
+                    txtApellido.setText(modeloTabla.getValueAt(fila, 2).toString());
+                    txtCorreo.setText(modeloTabla.getValueAt(fila, 3).toString());
+                    txtTelefono.setText(modeloTabla.getValueAt(fila, 4).toString());
+                }
             }
         });
+
+        // Cargar al iniciar
+        cargarContactos();
     }
 
     private void guardarContacto() {
-        try {
-            Connection conexion = Conexion.conectar();
-            if (conexion != null) {
-                String sql = "INSERT INTO usuarios_agenda (nombre, apellido, correo, telefono) VALUES (?, ?, ?, ?)";
-                PreparedStatement stmt = conexion.prepareStatement(sql);
-                stmt.setString(1, txtNombre.getText());
-                stmt.setString(2, txtApellido.getText());
-                stmt.setString(3, txtCorreo.getText());
-                stmt.setString(4, txtTelefono.getText());
+        try (Connection conexion = Conexion.conectar()) {
+            String sql = "INSERT INTO usuarios_agenda (nombre, apellido, correo, telefono) VALUES (?, ?, ?, ?)";
+            PreparedStatement stmt = conexion.prepareStatement(sql);
+            stmt.setString(1, txtNombre.getText());
+            stmt.setString(2, txtApellido.getText());
+            stmt.setString(3, txtCorreo.getText());
+            stmt.setString(4, txtTelefono.getText());
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Contacto guardado.");
+            limpiarCampos();
+            cargarContactos();
+        } catch (SQLException e) {
+            mostrarError("guardar el contacto", e);
+        }
+    }
 
-                int filasAfectadas = stmt.executeUpdate();
+    private void actualizarContacto() {
+        if (idSeleccionado == -1) {
+            JOptionPane.showMessageDialog(this, "Seleccione un contacto para actualizar.");
+            return;
+        }
 
-                if (filasAfectadas > 0) {
-                    JOptionPane.showMessageDialog(null, "Contacto guardado exitosamente.");
-                    limpiarCampos(); // Clear the text fields after saving
-                } else {
-                    JOptionPane.showMessageDialog(null, "No se pudo guardar el contacto.");
-                }
+        try (Connection conexion = Conexion.conectar()) {
+            String sql = "UPDATE usuarios_agenda SET nombre=?, apellido=?, correo=?, telefono=? WHERE id=?";
+            PreparedStatement stmt = conexion.prepareStatement(sql);
+            stmt.setString(1, txtNombre.getText());
+            stmt.setString(2, txtApellido.getText());
+            stmt.setString(3, txtCorreo.getText());
+            stmt.setString(4, txtTelefono.getText());
+            stmt.setInt(5, idSeleccionado);
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Contacto actualizado.");
+            limpiarCampos();
+            cargarContactos();
+        } catch (SQLException e) {
+            mostrarError("actualizar el contacto", e);
+        }
+    }
 
-                stmt.close();
-                conexion.close();
-            } else {
-                JOptionPane.showMessageDialog(null, "Error: No se pudo conectar a la base de datos.");
-            }
-        } catch (SQLException ex) {
-            JOptionPane.showMessageDialog(null, "Error al guardar el contacto: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
-            ex.printStackTrace(); // VERY important for debugging!
+    private void eliminarContacto() {
+        if (idSeleccionado == -1) {
+            JOptionPane.showMessageDialog(this, "Seleccione un contacto para eliminar.");
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this, "¿Está seguro de eliminar el contacto?", "Confirmar", JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) return;
+
+        try (Connection conexion = Conexion.conectar()) {
+            String sql = "DELETE FROM usuarios_agenda WHERE id=?";
+            PreparedStatement stmt = conexion.prepareStatement(sql);
+            stmt.setInt(1, idSeleccionado);
+            stmt.executeUpdate();
+            JOptionPane.showMessageDialog(this, "Contacto eliminado.");
+            limpiarCampos();
+            cargarContactos();
+        } catch (SQLException e) {
+            mostrarError("eliminar el contacto", e);
         }
     }
 
@@ -135,5 +185,31 @@ public class UsuariosView extends JFrame {
         txtApellido.setText("");
         txtCorreo.setText("");
         txtTelefono.setText("");
+        idSeleccionado = -1;
+    }
+
+    private void cargarContactos() {
+        modeloTabla.setRowCount(0); // limpiar tabla
+        try (Connection conexion = Conexion.conectar()) {
+            String sql = "SELECT * FROM usuarios_agenda";
+            PreparedStatement stmt = conexion.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+            while (rs.next()) {
+                modeloTabla.addRow(new Object[]{
+                        rs.getInt("id"),
+                        rs.getString("nombre"),
+                        rs.getString("apellido"),
+                        rs.getString("correo"),
+                        rs.getString("telefono")
+                });
+            }
+        } catch (SQLException e) {
+            mostrarError("cargar los contactos", e);
+        }
+    }
+
+    private void mostrarError(String accion, SQLException e) {
+        JOptionPane.showMessageDialog(this, "Error al " + accion + ": " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+        e.printStackTrace();
     }
 }
